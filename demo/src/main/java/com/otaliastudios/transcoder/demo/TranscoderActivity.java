@@ -1,19 +1,29 @@
 package com.otaliastudios.transcoder.demo;
 
+import static com.otaliastudios.transcoder.internal.utils.TrackMapKt.trackMapOf;
+
 import android.annotation.SuppressLint;
 import android.content.ClipData;
 import android.content.Intent;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
+import android.view.animation.PathInterpolator;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 
 import com.otaliastudios.transcoder.Transcoder;
 import com.otaliastudios.transcoder.TranscoderListener;
@@ -21,6 +31,10 @@ import com.otaliastudios.transcoder.TranscoderOptions;
 import com.otaliastudios.transcoder.common.TrackStatus;
 import com.otaliastudios.transcoder.common.TrackType;
 import com.otaliastudios.transcoder.internal.utils.Logger;
+import com.otaliastudios.transcoder.internal.utils.TrackMap;
+import com.otaliastudios.transcoder.resize.AspectRatioResizer;
+import com.otaliastudios.transcoder.resize.FractionResizer;
+import com.otaliastudios.transcoder.resize.PassThroughResizer;
 import com.otaliastudios.transcoder.source.DataSource;
 import com.otaliastudios.transcoder.source.TrimDataSource;
 import com.otaliastudios.transcoder.source.UriDataSource;
@@ -28,9 +42,7 @@ import com.otaliastudios.transcoder.strategy.DefaultAudioStrategy;
 import com.otaliastudios.transcoder.strategy.DefaultVideoStrategy;
 import com.otaliastudios.transcoder.strategy.RemoveTrackStrategy;
 import com.otaliastudios.transcoder.strategy.TrackStrategy;
-import com.otaliastudios.transcoder.resize.AspectRatioResizer;
-import com.otaliastudios.transcoder.resize.FractionResizer;
-import com.otaliastudios.transcoder.resize.PassThroughResizer;
+import com.otaliastudios.transcoder.time.TimeInterpolator;
 import com.otaliastudios.transcoder.validator.DefaultValidator;
 
 import java.io.File;
@@ -39,16 +51,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.FileProvider;
-
 import kotlin.collections.ArraysKt;
 
 
-public class TranscoderActivity extends AppCompatActivity implements
-        TranscoderListener {
-
+public class TranscoderActivity extends AppCompatActivity implements TranscoderListener {
+    private static final String TAG = "TranscoderActivity";
     private static final Logger LOG = new Logger("TranscoderActivity");
 
     private static final String FILE_PROVIDER_AUTHORITY = "com.otaliastudios.transcoder.demo.fileprovider";
@@ -82,15 +89,16 @@ public class TranscoderActivity extends AppCompatActivity implements
     private long mTrimStartUs = 0;
     private long mTrimEndUs = 0;
 
-    private final RadioGroup.OnCheckedChangeListener mRadioGroupListener
-            = (group, checkedId) -> syncParameters();
+    private final RadioGroup.OnCheckedChangeListener mRadioGroupListener = (group, checkedId) -> syncParameters();
 
     private final TextWatcher mTextListener = new TextWatcher() {
         @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+        }
 
         @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) { }
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+        }
 
         @Override
         public void afterTextChanged(Editable s) {
@@ -108,9 +116,7 @@ public class TranscoderActivity extends AppCompatActivity implements
         mButtonView = findViewById(R.id.button);
         mButtonView.setOnClickListener(v -> {
             if (!mIsTranscoding) {
-                Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
-                        .setDataAndType(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video/*")
-                        .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setDataAndType(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
                 startActivityForResult(intent, REQUEST_CODE_PICK);
             } else {
                 mTranscodeFuture.cancel(true);
@@ -148,8 +154,7 @@ public class TranscoderActivity extends AppCompatActivity implements
             mAudioReplaceView.setText("No replacement selected.");
             if (checkedId == R.id.replace_yes) {
                 if (!mIsTranscoding) {
-                    startActivityForResult(new Intent(Intent.ACTION_GET_CONTENT)
-                            .setType("audio/*"), REQUEST_CODE_PICK_AUDIO);
+                    startActivityForResult(new Intent(Intent.ACTION_GET_CONTENT).setType("audio/*"), REQUEST_CODE_PICK_AUDIO);
                 }
             }
             mRadioGroupListener.onCheckedChanged(group, checkedId);
@@ -177,10 +182,7 @@ public class TranscoderActivity extends AppCompatActivity implements
         if (removeAudio) {
             mTranscodeAudioStrategy = new RemoveTrackStrategy();
         } else {
-            mTranscodeAudioStrategy = DefaultAudioStrategy.builder()
-                    .channels(channels)
-                    .sampleRate(sampleRate)
-                    .build();
+            mTranscodeAudioStrategy = DefaultAudioStrategy.builder().channels(channels).sampleRate(sampleRate).build();
         }
 
         int frames = DefaultVideoStrategy.DEFAULT_FRAME_RATE;
@@ -200,10 +202,7 @@ public class TranscoderActivity extends AppCompatActivity implements
         else if (aspectRatioId == R.id.aspect_43) aspectRatio = 4F / 3F;
         else if (aspectRatioId == R.id.aspect_square) aspectRatio = 1F;
 
-        mTranscodeVideoStrategy = new DefaultVideoStrategy.Builder()
-                .addResizer(aspectRatio > 0 ? new AspectRatioResizer(aspectRatio) : new PassThroughResizer())
-                .addResizer(new FractionResizer(fraction))
-                .frameRate(frames)
+        mTranscodeVideoStrategy = new DefaultVideoStrategy.Builder().addResizer(aspectRatio > 0 ? new AspectRatioResizer(aspectRatio) : new PassThroughResizer()).addResizer(new FractionResizer(fraction)).frameRate(frames)
                 // .keyFrameInterval(4F)
                 .build();
 
@@ -231,9 +230,7 @@ public class TranscoderActivity extends AppCompatActivity implements
     @Override
     protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_CODE_PICK
-                && resultCode == RESULT_OK
-                && data != null) {
+        if (requestCode == REQUEST_CODE_PICK && resultCode == RESULT_OK && data != null) {
             if (data.getClipData() != null) {
                 ClipData clipData = data.getClipData();
                 List<Uri> uris = new ArrayList<>();
@@ -245,10 +242,7 @@ public class TranscoderActivity extends AppCompatActivity implements
                 transcode(data.getData());
             }
         }
-        if (requestCode == REQUEST_CODE_PICK_AUDIO
-                && resultCode == RESULT_OK
-                && data != null
-                && data.getData() != null) {
+        if (requestCode == REQUEST_CODE_PICK_AUDIO && resultCode == RESULT_OK && data != null && data.getData() != null) {
             mAudioReplacementUri = data.getData();
             mAudioReplaceView.setText(mAudioReplacementUri.toString());
 
@@ -298,19 +292,51 @@ public class TranscoderActivity extends AppCompatActivity implements
             builder.addDataSource(TrackType.AUDIO, this, mAudioReplacementUri);
         }
         LOG.e("Starting transcoding!");
-        mTranscodeFuture = builder.setListener(this)
-                .setAudioTrackStrategy(mTranscodeAudioStrategy)
-                .setVideoTrackStrategy(mTranscodeVideoStrategy)
-                .setVideoRotation(rotation)
-                .setValidator(new DefaultValidator() {
-                    @Override
-                    public boolean validate(@NonNull TrackStatus videoStatus, @NonNull TrackStatus audioStatus) {
-                        mIsAudioOnly = !videoStatus.isTranscoding();
-                        return super.validate(videoStatus, audioStatus);
-                    }
-                })
-                .setSpeed(speed)
-                .transcode();
+        PathInterpolator interpolator = new PathInterpolator(0.5f, 0, 0.5f, 1);
+
+        MediaExtractor extrac = new MediaExtractor();
+        try {
+            extrac.setDataSource(this, uris[0], null);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        extrac.selectTrack(0);
+        MediaFormat mediaFormat = extrac.getTrackFormat(0);
+        long videoDuration = mediaFormat.getLong(MediaFormat.KEY_DURATION);
+        long audioDuration = extrac.getTrackFormat(1).getLong(MediaFormat.KEY_DURATION);
+//        long audioDuration = 8126983L;
+        Log.d(TAG, "transcode: video duration: " + videoDuration + ", audio duration: " + audioDuration);
+        final long[] videoTimeStamp = {Long.MIN_VALUE, Long.MIN_VALUE};
+        final long[] audioTimeStamp = {Long.MIN_VALUE, Long.MIN_VALUE};
+
+        TrackMap<TrackData> trackData = trackMapOf(new TrackData(videoDuration), new TrackData(audioDuration));
+        TimeInterpolator timeInterpolator = new TimeInterpolator() {
+            @Override
+            public long interpolate(@NonNull TrackType type, long time) {
+                TrackData data = trackData.get(type);
+                if (data.lastRealTime == Long.MIN_VALUE) {
+                    data.lastRealTime = time;
+                    data.lastCorrectedTime = time;
+                } else {
+                    long realDelta = time - data.lastRealTime;
+//                    float interpolatedSpeed = (interpolator.getInterpolation((float) time / data.duration)) * (1 - 0.1f) + 0.1f;
+                    float interpolatedSpeed = 0.5f;
+                    long correctedDelta = (long) ((double) realDelta / interpolatedSpeed);
+                    data.lastRealTime = time;
+                    data.lastCorrectedTime += correctedDelta;
+                }
+                Log.d(TAG, type + " time interpolate: " + ", real time: " + data.lastRealTime + ", corrected time: " + data.lastCorrectedTime);
+                return data.lastCorrectedTime;
+
+            }
+        };
+        mTranscodeFuture = builder.setListener(this).setAudioTrackStrategy(mTranscodeAudioStrategy).setVideoTrackStrategy(mTranscodeVideoStrategy).setVideoRotation(rotation).setValidator(new DefaultValidator() {
+            @Override
+            public boolean validate(@NonNull TrackStatus videoStatus, @NonNull TrackStatus audioStatus) {
+                mIsAudioOnly = !videoStatus.isTranscoding();
+                return super.validate(videoStatus, audioStatus);
+            }
+        }).setSpeed(0.1f).transcode();
     }
 
     @Override
@@ -330,11 +356,8 @@ public class TranscoderActivity extends AppCompatActivity implements
             onTranscodeFinished(true, "Transcoded file placed on " + mTranscodeOutputFile);
             File file = mTranscodeOutputFile;
             String type = mIsAudioOnly ? "audio/mp4" : "video/mp4";
-            Uri uri = FileProvider.getUriForFile(TranscoderActivity.this,
-                    FILE_PROVIDER_AUTHORITY, file);
-            startActivity(new Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, type)
-                    .setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
+            Uri uri = FileProvider.getUriForFile(TranscoderActivity.this, FILE_PROVIDER_AUTHORITY, file);
+            startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(uri, type).setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
         } else if (successCode == Transcoder.SUCCESS_NOT_NEEDED) {
             LOG.i("Transcoding was not needed.");
             onTranscodeFinished(true, "Transcoding not needed, source file untouched.");
@@ -358,4 +381,14 @@ public class TranscoderActivity extends AppCompatActivity implements
         Toast.makeText(TranscoderActivity.this, toastMessage, Toast.LENGTH_LONG).show();
     }
 
+
+    private static class TrackData {
+        public TrackData(long duration) {
+            this.duration = duration;
+        }
+
+        long duration;
+        private long lastRealTime = Long.MIN_VALUE;
+        private long lastCorrectedTime = Long.MIN_VALUE;
+    }
 }

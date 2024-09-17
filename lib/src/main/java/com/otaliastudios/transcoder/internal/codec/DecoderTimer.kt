@@ -1,5 +1,6 @@
 package com.otaliastudios.transcoder.internal.codec
 
+import android.util.Log
 import com.otaliastudios.transcoder.common.TrackType
 import com.otaliastudios.transcoder.internal.pipeline.TransformStep
 import com.otaliastudios.transcoder.internal.pipeline.State
@@ -18,11 +19,12 @@ internal class DecoderTimer(
     private val track: TrackType,
     private val interpolator: TimeInterpolator,
 ) : TransformStep<DecoderData, DecoderChannel>("DecoderTimer") {
-
+    private val TAG = "${track}DecoderTimer"
     private var lastTimeUs: Long = Long.MIN_VALUE
     private var lastRawTimeUs: Long = Long.MIN_VALUE
 
     override fun advance(state: State.Ok<DecoderData>): State<DecoderData> {
+        Log.d(TAG, "advance: state $state")
         if (state is State.Eos) return state
         require(state.value !is DecoderTimerData) {
             "Can't apply DecoderTimer twice."

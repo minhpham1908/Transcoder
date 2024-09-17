@@ -41,7 +41,8 @@ internal abstract class QueuedStep<
     protected abstract fun drain(): State<Output>
 
     final override fun advance(state: State.Ok<Input>): State<Output> {
-        if (state is State.Eos) enqueueEos(state.value)
+        if (state is State.Eos)
+            enqueueEos(state.value)
         else enqueue(state.value)
         // Disallow State.Retry because the input was already handled.
         return when (val result = drain()) {

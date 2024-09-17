@@ -2,6 +2,7 @@ package com.otaliastudios.transcoder.internal.audio
 
 import android.media.MediaFormat
 import android.media.MediaFormat.*
+import android.util.Log
 import android.view.Surface
 import com.otaliastudios.transcoder.internal.audio.remix.AudioRemixer
 import com.otaliastudios.transcoder.internal.codec.*
@@ -49,6 +50,7 @@ internal class AudioEngine(
 
     override fun enqueue(data: DecoderData) {
         val stretch = (data as? DecoderTimerData)?.timeStretch ?: 1.0
+       log.i("enqueue: ${data.timeUs}, stretch: $stretch")
         chunks.enqueue(data.buffer.asShortBuffer(), data.timeUs, stretch) { data.release(false) }
     }
 

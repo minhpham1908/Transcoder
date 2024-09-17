@@ -1,5 +1,6 @@
 package com.otaliastudios.transcoder.internal.pipeline
 
+import android.util.Log
 import com.otaliastudios.transcoder.internal.utils.Logger
 
 
@@ -8,6 +9,7 @@ private class PipelineItem(
     val step: Step<Any, Channel, Any, Channel>,
     val name: String,
 ) {
+    private val TAG = "Pipeline"
     // var success: State.Ok<Any>? = null
     // var failure: State.Retry? = null
     val unhandled = ArrayDeque<State.Ok<Any>>()
@@ -34,7 +36,9 @@ private class PipelineItem(
         advanced = false
         while (unhandled.isNotEmpty() && !done) {
             val input = unhandled.removeFirst()
-            when (val result = step.advance(input)) {
+            val result = step.advance(input)
+            Log.d(TAG, "$name handle: $result")
+            when (result) {
                 is State.Ok -> {
                     packets++
                     advanced = true

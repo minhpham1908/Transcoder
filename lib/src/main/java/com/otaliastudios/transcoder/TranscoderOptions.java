@@ -7,6 +7,10 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+
 import com.otaliastudios.transcoder.common.TrackType;
 import com.otaliastudios.transcoder.resample.AudioResampler;
 import com.otaliastudios.transcoder.resample.DefaultAudioResampler;
@@ -16,7 +20,6 @@ import com.otaliastudios.transcoder.source.AssetFileDescriptorDataSource;
 import com.otaliastudios.transcoder.source.DataSource;
 import com.otaliastudios.transcoder.source.FileDescriptorDataSource;
 import com.otaliastudios.transcoder.source.FilePathDataSource;
-import com.otaliastudios.transcoder.source.BlankAudioDataSource;
 import com.otaliastudios.transcoder.source.UriDataSource;
 import com.otaliastudios.transcoder.strategy.DefaultAudioStrategy;
 import com.otaliastudios.transcoder.strategy.DefaultVideoStrategies;
@@ -34,16 +37,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
-
 /**
  * Collects transcoding options consumed by {@link Transcoder}.
  */
 public class TranscoderOptions {
 
-    private TranscoderOptions() {}
+    private TranscoderOptions() {
+    }
 
     private DataSink dataSink;
     private List<DataSource> videoDataSources;

@@ -8,10 +8,10 @@ import java.nio.ByteBuffer
 import java.nio.ShortBuffer
 
 private data class Chunk(
-        val buffer: ShortBuffer,
-        val timeUs: Long,
-        val timeStretch: Double,
-        val release: () -> Unit
+    val buffer: ShortBuffer,
+    val timeUs: Long,
+    val timeStretch: Double,
+    val release: () -> Unit
 ) {
     companion object {
         val Eos = Chunk(ShortBuffer.allocate(0), 0, 0.0, {})
@@ -50,7 +50,11 @@ internal class ChunkQueue(private val log: Logger) {
         queue.addLast(Chunk.Eos)
     }
 
-    fun <T> drain(format: MediaFormat, eos: T, action: (buffer: ShortBuffer, timeUs: Long, timeStretch: Double) -> T): T {
+    fun <T> drain(
+        format: MediaFormat,
+        eos: T,
+        action: (buffer: ShortBuffer, timeUs: Long, timeStretch: Double) -> T
+    ): T {
         val head = queue.removeFirst()
         if (head === Chunk.Eos) return eos
 
@@ -67,11 +71,15 @@ internal class ChunkQueue(private val log: Logger) {
             val channelCount = format.getInteger(KEY_CHANNEL_COUNT)
             val buffer = pool.take(head.buffer)
             head.release()
-            queue.addFirst(head.copy(
-                timeUs = shortsToUs(consumed, sampleRate, channelCount),
-                release = { pool.give(buffer) },
-                buffer = buffer
-            ))
+            if (consumed != 0) {
+                queue.addFirst(
+                    head.copy(
+                        timeUs = shortsToUs(consumed, sampleRate, channelCount),
+                        release = { pool.give(buffer) },
+                        buffer = buffer
+                    )
+                )
+            }
             log.v("drain(): partially handled chunk at ${head.timeUs}us, ${head.buffer.remaining()} bytes left (${queue.size})")
         } else {
             // buffer consumed!

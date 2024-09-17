@@ -39,6 +39,7 @@ internal class DefaultTranscodeEngine(
 
     private val tracks = Tracks(strategies, dataSources, videoRotation, false)
 
+    ///Video segment + audio segment
     private val segments = Segments(dataSources, tracks, ::createPipeline)
 
     private val timer = Timer(interpolator, dataSources, tracks, segments.currentIndex)
