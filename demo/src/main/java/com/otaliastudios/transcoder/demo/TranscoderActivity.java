@@ -182,7 +182,7 @@ public class TranscoderActivity extends AppCompatActivity implements TranscoderL
         if (removeAudio) {
             mTranscodeAudioStrategy = new RemoveTrackStrategy();
         } else {
-            mTranscodeAudioStrategy = DefaultAudioStrategy.builder().channels(channels).sampleRate(sampleRate).build();
+            mTranscodeAudioStrategy = DefaultAudioStrategy.builder().channels(channels).sampleRate(44100).build();
         }
 
         int frames = DefaultVideoStrategy.DEFAULT_FRAME_RATE;
@@ -319,8 +319,8 @@ public class TranscoderActivity extends AppCompatActivity implements TranscoderL
                     data.lastCorrectedTime = time;
                 } else {
                     long realDelta = time - data.lastRealTime;
-//                    float interpolatedSpeed = (interpolator.getInterpolation((float) time / data.duration)) * (1 - 0.1f) + 0.1f;
-                    float interpolatedSpeed = 0.5f;
+                    float interpolatedSpeed = (interpolator.getInterpolation((float) time / data.duration)) * (1 - 0.1f) + 0.1f;
+//                    float interpolatedSpeed = 0.5f;
                     long correctedDelta = (long) ((double) realDelta / interpolatedSpeed);
                     data.lastRealTime = time;
                     data.lastCorrectedTime += correctedDelta;
@@ -330,13 +330,18 @@ public class TranscoderActivity extends AppCompatActivity implements TranscoderL
 
             }
         };
-        mTranscodeFuture = builder.setListener(this).setAudioTrackStrategy(mTranscodeAudioStrategy).setVideoTrackStrategy(mTranscodeVideoStrategy).setVideoRotation(rotation).setValidator(new DefaultValidator() {
+        mTranscodeFuture = builder.setListener(this)
+                .setAudioTrackStrategy(mTranscodeAudioStrategy)
+                .setVideoTrackStrategy(mTranscodeVideoStrategy)
+                .setVideoRotation(rotation)
+                .setTimeInterpolator(timeInterpolator)
+                .setValidator(new DefaultValidator() {
             @Override
             public boolean validate(@NonNull TrackStatus videoStatus, @NonNull TrackStatus audioStatus) {
                 mIsAudioOnly = !videoStatus.isTranscoding();
                 return super.validate(videoStatus, audioStatus);
             }
-        }).setSpeed(0.1f).transcode();
+        }).transcode();
     }
 
     @Override
